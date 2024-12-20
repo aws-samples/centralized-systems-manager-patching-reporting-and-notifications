@@ -1,0 +1,1354 @@
+---
+# Copyright Amazon.com, Inc. or its affiliates. All Rights Reserved.
+# SPDX-License-Identifier: MIT-0
+
+# Permission is hereby granted, free of charge, to any person obtaining a copy of this
+# software and associated documentation files (the "Software"), to deal in the Software
+# without restriction, including without limitation the rights to use, copy, modify,
+# merge, publish, distribute, sublicense, and/or sell copies of the Software, and to
+# permit persons to whom the Software is furnished to do so.
+
+# THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLIED,
+# INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY, FITNESS FOR A
+# PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT
+# HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION
+# OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE
+# SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
+
+AWSTemplateFormatVersion: "2010-09-09"
+Description:
+  AWS CloudFormation template to create a patch report for a single account using Amazon DynamoDB, Amazon EventBridge,
+  AWS Lambda, and Run Command, a capability of AWS Systems Manager.
+Metadata:
+  AWS::CloudFormation::Interface:
+    ParameterGroups:
+      - Label:
+          default: "Single Account"
+        Parameters:
+          - EventBridgeRuleSchedule
+          - EmailService
+          - RecipientEmail
+          - SenderEmail
+          - TimeToLive
+          - Chatbot
+Parameters:
+  EventBridgeRuleSchedule:
+    Type: String
+    Description: >-
+      (Required) The cron or rate expression to use for the Amazon EventBridge rule. For example: cron(0 12 * * ? *) or rate(7 days). Important: The time zone used is UTC. For more information, see https://docs.aws.amazon.com/eventbridge/latest/userguide/scheduled-events.html.
+    Default: cron(0 12 * * ? *)
+    AllowedPattern: "^(?:rate[(](?:(?:1[ ]+(hour|minute|day))|(?:[0-9]+[ ]+(hours|minutes|days)))[)])|(?:cron[(](?:(?:(?:[0-5]?[0-9])|[*])(?:(?:[-](?:(?:[0-5]?[0-9])|[*]))|(?:[/][0-9]+))?(?:[,](?:(?:[0-5]?[0-9])|[*])(?:(?:[-](?:(?:[0-5]?[0-9])|[*]))|(?:[/][0-9]+))?)*)[ ]+(?:(?:(?:[0-2]?[0-9])|[*])(?:(?:[-](?:(?:[0-2]?[0-9])|[*]))|(?:[/][0-9]+))?(?:[,](?:(?:[0-2]?[0-9])|[*])(?:(?:[-](?:(?:[0-2]?[0-9])|[*]))|(?:[/][0-9]+))?)*)[ ]+(?:(?:[?][ ]+(?:(?:(?:[1]?[0-9])|(?:JAN|FEB|MAR|APR|MAY|JUN|JUL|AUG|SEP|OCT|NOV|DEC)|[*])(?:(?:[-](?:(?:[1]?[0-9])|(?:JAN|FEB|MAR|APR|MAY|JUN|JUL|AUG|SEP|OCT|NOV|DEC)|[*])(?:[/][0-9]+)?)|(?:[/][0-9]+))?(?:[,](?:(?:[1]?[0-9])|(?:JAN|FEB|MAR|APR|MAY|JUN|JUL|AUG|SEP|OCT|NOV|DEC)|[*])(?:(?:[-](?:(?:[1]?[0-9])|(?:JAN|FEB|MAR|APR|MAY|JUN|JUL|AUG|SEP|OCT|NOV|DEC)|[*])(?:[/][0-9]+)?)|(?:[/][0-9]+))?)*)[ ]+(?:(?:(?:[1-7]|(?:SUN|MON|TUE|WED|THU|FRI|SAT))[#][0-5])|(?:(?:(?:(?:[1-7]|(?:SUN|MON|TUE|WED|THU|FRI|SAT))L?)|[L*])(?:(?:[-](?:(?:(?:[1-7]|(?:SUN|MON|TUE|WED|THU|FRI|SAT))L?)|[L*]))|(?:[/][0-9]+))?(?:[,](?:(?:(?:[1-7]|(?:SUN|MON|TUE|WED|THU|FRI|SAT))L?)|[L*])(?:(?:[-](?:(?:(?:[1-7]|(?:SUN|MON|TUE|WED|THU|FRI|SAT))L?)|[L*]))|(?:[/][0-9]+))?)*)))|(?:(?:(?:(?:(?:[1-3]?[0-9])W?)|LW|[L*])(?:(?:[-](?:(?:(?:[1-3]?[0-9])W?)|LW|[L*]))|(?:[/][0-9]+))?(?:[,](?:(?:(?:[1-3]?[0-9])W?)|LW|[L*])(?:(?:[-](?:(?:(?:[1-3]?[0-9])W?)|LW|[L*]))|(?:[/][0-9]+))?)*)[ ]+(?:(?:(?:[1]?[0-9])|(?:JAN|FEB|MAR|APR|MAY|JUN|JUL|AUG|SEP|OCT|NOV|DEC)|[*])(?:(?:[-](?:(?:[1]?[0-9])|(?:JAN|FEB|MAR|APR|MAY|JUN|JUL|AUG|SEP|OCT|NOV|DEC)|[*])(?:[/][0-9]+)?)|(?:[/][0-9]+))?(?:[,](?:(?:[1]?[0-9])|(?:JAN|FEB|MAR|APR|MAY|JUN|JUL|AUG|SEP|OCT|NOV|DEC)|[*])(?:(?:[-](?:(?:[1]?[0-9])|(?:JAN|FEB|MAR|APR|MAY|JUN|JUL|AUG|SEP|OCT|NOV|DEC)|[*])(?:[/][0-9]+)?)|(?:[/][0-9]+))?)*)[ ]+[?]))[ ]+(?:(?:(?:[12][0-9]{3})|[*])(?:(?:[-](?:(?:[12][0-9]{3})|[*]))|(?:[/][0-9]+))?(?:[,](?:(?:[12][0-9]{3})|[*])(?:(?:[-](?:(?:[12][0-9]{3})|[*]))|(?:[/][0-9]+))?)*)[)])$"
+    ConstraintDescription: "Rate or cron format in https://docs.aws.amazon.com/eventbridge/latest/userguide/scheduled-events.html."
+  EmailService:
+    Type: String
+    Description: "(Required) Service to be used for the patch summary email."
+    Default: SNS
+    AllowedValues:
+      - SNS
+      - SES
+  RecipientEmail:
+    Type: String
+    Description: "(Required) Email address to receive the patch summary report."
+    AllowedPattern: ^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$
+    ConstraintDescription: Must be a valid email address.
+  SenderEmail:
+    Type: String
+    Description: "Required when EmailService parameter set to SES. Email address to send the patch summary report."
+    AllowedPattern: ^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$
+    ConstraintDescription: Must be a valid email address.
+  TimeToLive:
+    Type: Number
+    Description: "(Required) TimeToLive in days for DynamoDB items after processed."
+    Default: 180
+    MinValue: 1
+    MaxValue: 1000
+  Chatbot:
+    Type: String
+    Description: Creating the necessary resources to use AWS Chatbot.
+    Default: false
+    AllowedValues:
+      - true
+      - false
+Rules:
+  SenderEmailParameters:
+    RuleCondition:
+      !Equals
+        - !Ref EmailService
+        - "SES"
+    Assertions:
+      - Assert:
+          !Not
+            - !Equals [!Ref SenderEmail, ""]
+        AssertDescription: "SenderEmail parameter can't be empty when EmailService is set to SES."
+  RecipientEmailParameters:
+    RuleCondition:
+      !Or
+        - !Equals [!Ref EmailService, "SES"]
+        - !Equals [!Ref EmailService, "SNS"]
+    Assertions:
+      - Assert:
+          !Not
+            - !Equals [!Ref RecipientEmail, ""]
+        AssertDescription: "RecipientEmail parameter can't be empty."
+Conditions:
+  SNSEmailResource:
+    !Equals
+      - !Ref "EmailService"
+      - "SNS"
+  ChatbotResource:
+    !Equals
+      - !Ref "Chatbot"
+      - true
+  SNSResources:
+    !Or
+      - !Equals [!Ref "Chatbot", true]
+      - !Equals [!Ref "EmailService", "SNS"]
+Resources:
+  PermissionForEventsToInvokeLambda:
+    Type: AWS::Lambda::Permission
+    Properties:
+      FunctionName:
+        Ref: PatchReportingLambdaFunction
+      Action: lambda:InvokeFunction
+      Principal: events.amazonaws.com
+      SourceArn:
+        !GetAtt PatchReportingScheduler.Arn
+  PatchReportingLambdaFunctionRole:
+    Type: AWS::IAM::Role
+    Properties:
+      Description: !Sub "IAM role for AWS Lambda function. This is created as a part of a CloudFormation stack name: ${AWS::StackName}."
+      AssumeRolePolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service:
+                - lambda.amazonaws.com
+            Action: sts:AssumeRole
+      Path: "/"
+      Policies:
+        - PolicyName: DynamoDBPolicy
+          PolicyDocument:
+            Version: "2012-10-17"
+            Statement:
+              - Effect: Allow
+                Action:
+                  - dynamodb:GetItem
+                  - dynamodb:PutItem
+                  - dynamodb:UpdateItem
+                  - dynamodb:DeleteItem
+                  - dynamodb:Scan
+                Resource:
+                  - !GetAtt PatchInvocationDynamoDBTable.Arn
+                  - !GetAtt PatchOperationDynamoDBTable.Arn
+              - Action: logs:CreateLogGroup
+                Resource:
+                  !Sub arn:${AWS::Partition}:logs:${AWS::Region}:${AWS::AccountId}:*
+                Effect: Allow
+              - Action:
+                  - logs:CreateLogStream
+                  - logs:PutLogEvents
+                Resource:
+                  !GetAtt LambdaFunctionLogGroup.Arn
+                Effect: Allow
+              - Action:
+                  - s3:PutObject
+                  - s3:GetObject
+                  - s3:PutObjectAcl
+                Resource:
+                  - !Sub arn:${AWS::Partition}:s3:::${PatchingReportS3Bucket}/*
+                Effect: Allow
+              - Action:
+                  - s3:ListBucket
+                Resource:
+                  - !GetAtt PatchingReportS3Bucket.Arn
+                Effect: Allow
+              - !If
+                - SNSResources
+                - Action: sns:Publish
+                  Resource:
+                    - !If [SNSEmailResource, !Ref PatchingReportEmailSNSTopic, !Ref "AWS::NoValue"]
+                    - !If [ChatbotResource, !Ref PatchingReportChatbotSNSTopic, !Ref "AWS::NoValue"]
+                  Effect: Allow
+                - !Ref "AWS::NoValue"
+              - !If
+                - SNSEmailResource
+                - !Ref "AWS::NoValue"
+                - Action:
+                    - ses:SendEmail
+                    - ses:SendRawEmail
+                  Resource: "*"
+                  Effect: Allow
+                  Condition:
+                    StringEquals:
+                      "ses:FromAddress": !Ref SenderEmail
+      Tags:
+        - Key: cloudformation:logical-id
+          Value: PatchReportingLambdaFunctionRole
+        - Key: cloudformation:stack-id
+          Value: !Ref AWS::StackId
+        - Key: cloudformation:stack-name
+          Value: !Ref AWS::StackName
+  PatchReportingLambdaFunction:
+    Type: AWS::Lambda::Function
+    Properties:
+      Description: !Sub "Lambda function to generate patch reports. CloudFormation stack name: ${AWS::StackName}."
+      Code:
+        ZipFile: !Sub |
+          import boto3
+          import csv
+          import json
+          from datetime import datetime, timedelta
+          import os
+          from email.mime.multipart import MIMEMultipart
+          from email.mime.text import MIMEText
+
+          # Initialize Boto3 clients for S3 and DynamoDB
+          s3 = boto3.client('s3')
+          dynamodb = boto3.client('dynamodb')
+          sns = boto3.client('sns')
+          ses = boto3.client('ses')
+
+          # Main lambda function that calls all other sub functions
+          def handler(event, context):
+              # DynamoDB table names
+              table1_name = os.environ['TABLE1_NAME']
+              table2_name = os.environ['TABLE2_NAME']
+
+              # S3 Bucket
+              s3_bucket_name = os.environ['S3_BUCKET_NAME']
+
+              region_id = os.environ['REGION_ID']
+
+              # Notification type (SNS or SES)
+              email_service = os.environ['EMAIL_SERVICE']
+
+              time_to_live = os.environ['TIME_TO_LIVE']
+
+              chatbot_sns_topic_arn = os.environ['CHATBOT_SNS_TOPIC_ARN']
+
+              # Scan table1 and table2 to get all items
+              table1_items = scan_dynamodb_table(table1_name)
+              table2_items = scan_dynamodb_table(table2_name)
+
+
+              if table1_items and table2_items:
+                  # Extract current date and time
+                  global current_date
+                  current_date = datetime.now().strftime("%Y-%m-%dT%H:%M:%S")
+
+                  # Update table1 and table2 items "Data Processed" column to "Yes"
+                  update_dynamodb_table(table1_name, table1_items, time_to_live)
+                  update_dynamodb_table(table2_name, table2_items, time_to_live)
+
+                  # Clean up the data
+                  cleaned_list1 = clean_dynamodb_data(table1_items)
+                  cleaned_list2 = clean_dynamodb_data(table2_items)
+
+                  # Merge data from table2 into table1
+                  patch_operations = merge_data(cleaned_list1, cleaned_list2)
+
+                  # Sort the patch_operations list in descending order based on RequestedDateTime
+                  patch_operations.sort(key=lambda x: x['RequestedDateTime'], reverse=True)
+
+                  # Write merged data to a CSV file in the /tmp directory
+                  output_file = '/tmp/patch_operations.csv'
+                  write_to_csv(patch_operations, output_file)
+
+                  # Upload files to S3
+                  s3_key_1 = f'patch_operations-{current_date}.csv'
+                  upload_to_s3(output_file, s3_bucket_name, s3_key_1)
+
+                  # Get the operation statistics
+                  operation_stats = get_operation_stats(patch_operations)
+
+                  # Get the consolidated statistics
+                  consolidated_stats, failed_command_ids, unique_successful_scan_nodes, unique_failed_scan_nodes, unique_successful_install_nodes, unique_failed_install_nodes, max_time, min_time, total_scan_operations, total_install_operations = get_consolidated_stats(operation_stats)
+
+                  # Call SNS or SES function based on notification type
+                  if email_service == 'SNS':
+                      # SNS Topic ARN
+                      sns_topic_arn = os.environ['SNS_TOPIC_ARN']
+                      send_sns_notification(sns_topic_arn, s3_bucket_name, s3_key_1, region_id, consolidated_stats, failed_command_ids, unique_successful_scan_nodes, unique_failed_scan_nodes, unique_successful_install_nodes, unique_failed_install_nodes, max_time, min_time)
+                  elif email_service == 'SES':
+                      # SES Sender and Recipient Emails
+                      sender_email = os.environ['SENDER_EMAIL']
+                      recipient_email = os.environ['RECIPIENT_EMAIL']
+                      send_ses_notification(s3_bucket_name, s3_key_1, region_id, sender_email, recipient_email, consolidated_stats, failed_command_ids, unique_successful_scan_nodes, unique_failed_scan_nodes, unique_successful_install_nodes, unique_failed_install_nodes, max_time, min_time, total_scan_operations, total_install_operations)
+                  else:
+                      print("Invalid notification type. Please specify 'SNS' or 'SES'.")
+
+                  if chatbot_sns_topic_arn:
+                      send_chatbot_sns_notification(chatbot_sns_topic_arn, s3_bucket_name, s3_key_1, region_id, max_time, min_time)
+
+                  return {
+                      'statusCode': 200,
+                      'body': 'Patch report was generated and uploaded to S3 successfully'
+                  }
+              else:
+                  return {
+                      'statusCode': 200,
+                      'body': 'Skipped. DynamoDB table does not have any data to process.'
+                  }
+
+          def scan_dynamodb_table(table_name):
+              """
+              Scans a DynamoDB table and returns all the items where the "Data Processed" column is set to "No".
+              """
+              items = []
+              last_evaluated_key = None
+
+              while True:
+                  if last_evaluated_key:
+                      response = dynamodb.scan(
+                          TableName=table_name,
+                          ExclusiveStartKey=last_evaluated_key,
+                          FilterExpression="#dataProcessed = :dataProcessed",
+                          ExpressionAttributeNames={
+                              "#dataProcessed": "DataProcessed"
+                          },
+                          ExpressionAttributeValues={
+                              ":dataProcessed": {"S": "no"}
+                          }
+                      )
+                  else:
+                      response = dynamodb.scan(
+                          TableName=table_name,
+                          FilterExpression="#dataProcessed = :dataProcessed",
+                          ExpressionAttributeNames={
+                              "#dataProcessed": "DataProcessed"
+                          },
+                          ExpressionAttributeValues={
+                              ":dataProcessed": {"S": "no"}
+                          }
+                      )
+                  items.extend(response['Items'])
+                  if 'LastEvaluatedKey' in response:
+                      last_evaluated_key = response['LastEvaluatedKey']
+                  else:
+                      break
+
+              return items
+
+          def update_dynamodb_table(table_name, items, ttl):
+              """
+              Updates the DynamoDB table by setting the "Data Processed" column to "Yes" for the given items.
+              """
+
+              # Get the current time in epoch second format
+              current_time = int(datetime.now().timestamp())
+
+              # Calculate the expireAt time (90 days from now) in epoch second format
+              expire_at = int((datetime.now() + timedelta(days=int(ttl))).timestamp())
+              for item in items:
+                  key = {
+                      'Id': item['Id'],
+                      'CommandId': item['CommandId']
+                  }
+                  response = dynamodb.update_item(
+                      TableName=table_name,
+                      Key=key,
+                      UpdateExpression="SET #dataProcessed = :dataProcessed, TimeToLive = :TimeToLive",
+                      ExpressionAttributeNames={
+                          "#dataProcessed": "DataProcessed"
+                      },
+                      ExpressionAttributeValues={
+                          ":dataProcessed": {"S": "Yes"},
+                          ":TimeToLive": {"N": str(expire_at)}
+                      }
+                  )
+
+          def clean_dynamodb_data(items):
+              """
+              Cleans up the DynamoDB data by extracting the values from the nested dictionaries.
+              """
+              cleaned_items = []
+              for item in items:
+                  cleaned_item = {key: value.pop(list(value.keys())[0]) for key, value in item.items()}
+                  cleaned_items.append(cleaned_item)
+              return cleaned_items
+
+          def merge_data(table1_items, table2_items):
+              """
+              Merges the data from table2 into table1 based on the CommandId.
+              """
+              patch_operations = []
+              for item1 in table1_items:
+                  for item2 in table2_items:
+                      if item1['CommandId'] == item2['CommandId']:
+                          merged_item = item1.copy()
+                          merged_item['Operation'] = item2['Operation']
+                          merged_item['CommandStatus'] = item2['Status']
+                          merged_item['CommandDateTime'] = item2['RequestedDateTime']
+                          merged_item['AssociationId'] = item2.get('AssociationId','')
+                          merged_item['BaselineOverride'] = item2.get('BaselineOverride', '')
+                          merged_item['InstallOverrideList'] = item2.get('InstallOverrideList', '')
+                          merged_item['SnapshotId'] = item2.get('SnapshotId', '')
+                          merged_item['RebootOption'] = item2.get('RebootOption', '')
+                          patch_operations.append(merged_item)
+                          break
+              return patch_operations
+
+          def write_to_csv(patch_operations, output_file):
+              """
+              Writes the merged data to a CSV file in the /tmp directory.
+              """
+              with open(output_file, 'w', newline='') as csvfile:
+                  fieldnames = ['AccountId', 'Region', 'CommandId', 'DocumentName', 'Operation', 'Status', 'RequestedDateTime', 'InvokedTime', 'InstanceId', 'RebootOption', 'AssociationId', 'SnapshotId', 'BaselineOverride', 'InstallOverrideList']
+                  writer = csv.DictWriter(csvfile, fieldnames=fieldnames)
+                  writer.writeheader()
+
+                  for item in patch_operations:
+                      # Rearrange the columns
+                      row = {
+                          'AccountId': item['AccountId'],
+                          'Region': item['Region'],
+                          'CommandId': item['CommandId'],
+                          'DocumentName': item['DocumentName'],
+                          'Operation': item['Operation'],
+                          'Status': item['Status'],
+                          'RequestedDateTime': item['RequestedDateTime'],
+                          'InvokedTime': item['Time'],
+                          'InstanceId': item['InstanceId'],
+                          'RebootOption': item['RebootOption'],
+                          'AssociationId': item['AssociationId'],
+                          'SnapshotId': item['SnapshotId'],
+                          'BaselineOverride': item['BaselineOverride'],
+                          'InstallOverrideList': item['InstallOverrideList']
+                      }
+                      writer.writerow(row)
+
+              print(f"CSV file '{output_file}' created successfully.")
+
+          def upload_to_s3(local_file, s3_bucket, s3_key):
+              """
+              Uploads the CSV file to the specified S3 bucket and key.
+              """
+              try:
+                  s3.upload_file(local_file, s3_bucket, s3_key)
+                  print(f"CSV file uploaded to S3 bucket '{s3_bucket}' with key '{s3_key}'")
+              except Exception as e:
+                  print(f"Error uploading file to S3: {e}")
+                  raise e
+
+          def get_operation_stats(patch_operations):
+              """
+              Calculates the count of "Scan" and "Install" operations with their respective statuses, grouped by account ID, region, and command ID.
+              """
+              operation_stats = {}
+
+              for item in patch_operations:
+                  account_id = item['AccountId']
+                  region = item['Region']
+                  command_id = item['CommandId']
+                  operation = item['Operation']
+                  status = item['Status']
+                  instance_id = item['InstanceId']
+                  runcommand_status = item['CommandStatus']
+                  command_date_time = item['CommandDateTime']
+
+                  key = f"{account_id}_{region}_{command_id}"
+
+                  if key not in operation_stats:
+                      operation_stats[key] = {
+                          'Operation': operation,
+                          'Successful Instances': 0,
+                          'Failed Instances': 0,
+                          'Failed Instance IDs': set(),
+                          'Command Status': runcommand_status,
+                          'Command Date Time': command_date_time
+                      }
+
+                  if status == 'Success':
+                      operation_stats[key]['Successful Instances'] += 1
+                  else:
+                      operation_stats[key]['Failed Instances'] += 1
+                      operation_stats[key]['Failed Instance IDs'].add(instance_id)
+
+              return operation_stats
+
+          def get_consolidated_stats(operation_stats):
+              consolidated_stats = {}
+              failed_command_ids = {}
+              unique_successful_scan_nodes = {}
+              unique_failed_scan_nodes = {}
+              unique_successful_install_nodes = {}
+              unique_failed_install_nodes = {}
+              max_time = None
+              min_time = None
+              total_scan_operations = 0
+              total_install_operations = 0
+
+              for key, stats in operation_stats.items():
+                  account_id, region, command_id = key.split("_")
+                  operation = stats["Operation"]
+                  successful_instances = stats["Successful Instances"]
+                  failed_instances = stats["Failed Instances"]
+                  failed_instance_ids = stats["Failed Instance IDs"]
+                  command_date_time = stats["Command Date Time"]
+
+                  if max_time is None or command_date_time > max_time:
+                      max_time = command_date_time
+                  if min_time is None or command_date_time < min_time:
+                      min_time = command_date_time
+
+                  key = f"{account_id}_{region}"
+                  if key not in consolidated_stats:
+                      consolidated_stats[key] = {
+                          "Scan": {
+                              "Successful Instances": 0,
+                              "Failed Instances": 0,
+                              "Count": 0
+                          },
+                          "Install": {
+                              "Successful Instances": 0,
+                              "Failed Instances": 0,
+                              "Count": 0
+                          }
+                      }
+                      failed_command_ids[key] = {
+                          "Scan": set(),
+                          "Install": set()
+                      }
+                      unique_successful_scan_nodes[key] = set()
+                      unique_failed_scan_nodes[key] = set()
+                      unique_successful_install_nodes[key] = set()
+                      unique_failed_install_nodes[key] = set()
+
+                  if operation == "Scan":
+                      consolidated_stats[key]["Scan"]["Successful Instances"] += successful_instances
+                      consolidated_stats[key]["Scan"]["Failed Instances"] += failed_instances
+                      if failed_instances > 0:
+                          failed_command_ids[key]["Scan"].add(command_id)
+                          unique_failed_scan_nodes[key].update(failed_instance_ids)
+                      consolidated_stats[key]["Scan"]["Count"] += 1
+                      total_scan_operations += 1
+                      unique_successful_scan_nodes[key].update([f"i-{instance_id}" for instance_id in range(successful_instances)])
+                  elif operation == "Install":
+                      consolidated_stats[key]["Install"]["Successful Instances"] += successful_instances
+                      consolidated_stats[key]["Install"]["Failed Instances"] += failed_instances
+                      if failed_instances > 0:
+                          failed_command_ids[key]["Install"].add(command_id)
+                          unique_failed_install_nodes[key].update(failed_instance_ids)
+                      consolidated_stats[key]["Install"]["Count"] += 1
+                      total_install_operations += 1
+                      unique_successful_install_nodes[key].update([f"i-{instance_id}" for instance_id in range(successful_instances)])
+
+              return consolidated_stats, failed_command_ids, unique_successful_scan_nodes, unique_failed_scan_nodes, unique_successful_install_nodes, unique_failed_install_nodes, max_time, min_time, total_scan_operations, total_install_operations
+
+          def send_sns_notification(sns_topic_arn, s3_bucket, s3_key_1, region_id, consolidated_stats, failed_command_ids, unique_successful_scan_nodes, unique_failed_scan_nodes, unique_successful_install_nodes, unique_failed_install_nodes, max_time, min_time):
+              """
+              Sends an SNS notification with the patch operations summary.
+              """
+              # Create the SNS message body
+              sns_message_body = f"Patch Operations Summary - {current_date}\n\n"
+              sns_message_body += f"The patch report data between {min_time} and {max_time} has been generated and uploaded to S3:\n"
+              sns_message_body += f"""https://s3.console.aws.amazon.com/s3/object/{s3_bucket}/{s3_key_1}?region={region_id}\n\n"""
+
+              for key, stats in consolidated_stats.items():
+                  account_id, region = key.split("_")
+                  sns_message_body += f"Account ID: {account_id}\n"
+                  sns_message_body += f"    Region: {region}\n"
+
+                  if stats["Scan"]["Count"] > 0:
+                      sns_message_body += f"    Total Scan Operations: {stats['Scan']['Count']}\n"
+                      sns_message_body += f"        Successful Nodes: {len(unique_successful_scan_nodes[key])}\n"
+                      sns_message_body += f"        Failed Nodes: {len(unique_failed_scan_nodes[key])}\n"
+                      if stats['Scan']['Failed Instances'] > 0:
+                          sns_message_body += "                  Failed Run command details:\n"
+                          sns_message_body += f"                       Command IDs: {', '.join(failed_command_ids[key]['Scan'])}\n"
+
+                  if stats["Install"]["Count"] > 0:
+                      sns_message_body += f"    Total Install Operations: {stats['Install']['Count']}\n"
+                      sns_message_body += f"        Successful Nodes: {len(unique_successful_install_nodes[key])}\n"
+                      sns_message_body += f"        Failed Nodes: {len(unique_failed_install_nodes[key])}\n"
+                      if stats['Install']['Failed Instances'] > 0:
+                          sns_message_body += "                  Failed Run command details:\n"
+                          sns_message_body += f"                       Command IDs: {', '.join(failed_command_ids[key]['Install'])}\n"
+                  sns_message_body += "\n"
+
+              # Publish the SNS message
+              try:
+                  response = sns.publish(
+                      TopicArn=sns_topic_arn,
+                      Message=sns_message_body,
+                      Subject="Patch Operations Summary"
+                  )
+                  print(f"SNS notification sent. Message ID: {response['MessageId']}")
+              except Exception as e:
+                  print(f"Error sending SNS notification: {e}")
+                  raise e
+
+          def send_ses_notification(s3_bucket, s3_key_1, region_id, sender_email, recipient_email, consolidated_stats, failed_command_ids, unique_successful_scan_nodes, unique_failed_scan_nodes, unique_successful_install_nodes, unique_failed_install_nodes, max_time, min_time, total_scan_operations, total_install_operations):
+              """
+              Sends an email notification with the patch operations summary using Amazon SES.
+              """
+              # Create a new SES client
+              ses = boto3.client('ses')
+
+              # Construct the HTML message body
+              html_message = f"""
+              <html>
+              <head>
+                  <title>Patch Operations Summary</title>
+              </head>
+              <body>
+                  <h1>Patch Operations Summary - {current_date}</h1>
+                  <p>The patch report data between <b>{ min_time }</b> and <b>{ max_time }</b> has been generated and uploaded to S3:</p>
+                  <p><a href="https://s3.console.aws.amazon.com/s3/object/{s3_bucket}/{s3_key_1}?region={region_id}">{s3_key_1}</a></p>
+              """
+              if total_scan_operations > 0:
+                  html_message += f"""
+                  <h2>Scan Operations</h2>
+                  <table border="1" cellpadding="5" style="border-collapse: collapse;">
+                      <tr>
+                          <th>Account ID</th>
+                          <th>Region</th>
+                          <th>Total Scan Operations</th>
+                          <th>Successful Nodes</th>
+                          <th>Failed Nodes</th>
+                          <th>Failed Command IDs</th>
+                      </tr>
+                  """
+
+                  for key, stats in consolidated_stats.items():
+                      account_id, region = key.split("_")
+                      scan_stats = stats["Scan"]
+                      if scan_stats["Count"] > 0:
+                          html_message += f"""
+                          <tr>
+                              <td>{account_id}</td>
+                              <td>{region}</td>
+                              <td>{scan_stats["Count"]}</td>
+                              <td>{len(unique_successful_scan_nodes[key])}</td>
+                              <td>{len(unique_failed_scan_nodes[key])}</td>
+                              <td>
+                                  • {'<br>• '.join(failed_command_ids[key]["Scan"])}
+                              </td>
+                          </tr>
+                          """
+                  html_message += f"""
+                  </table>
+                  """
+              else:
+                  html_message += f"""
+                  <h2>No scan operations found</h2>
+                  """
+
+              if total_install_operations > 0:
+                  html_message += """
+                      <h2>Install Operations</h2>
+                      <table border="1" cellpadding="5" style="border-collapse: collapse;">
+                          <tr>
+                              <th>Account ID</th>
+                              <th>Region</th>
+                              <th>Total Install Operations</th>
+                              <th>Successful Nodes</th>
+                              <th>Failed Nodes</th>
+                              <th>Failed Command IDs</th>
+                          </tr>
+                  """
+
+                  for key, stats in consolidated_stats.items():
+                      account_id, region = key.split("_")
+                      install_stats = stats["Install"]
+                      if install_stats["Count"] > 0:
+                          html_message += f"""
+                          <tr>
+                              <td>{account_id}</td>
+                              <td>{region}</td>
+                              <td>{install_stats["Count"]}</td>
+                              <td>{len(unique_successful_install_nodes[key])}</td>
+                              <td>{len(unique_failed_install_nodes[key])}</td>
+                              <td>
+                                  • {'<br>• '.join(failed_command_ids[key]["Install"])}
+                              </td>
+                          </tr>
+                          """
+                  html_message += """
+                      </table>
+                  """
+              else:
+                  html_message += f"""
+                  <h2>No install operations found</h2>
+                  """
+
+              html_message += """
+              </body>
+              </html>
+              """
+
+              # Create the email message
+              msg = MIMEMultipart('alternative')
+              msg['Subject'] = "Patch Operations Summary"
+              msg['From'] = sender_email
+              msg['To'] = recipient_email
+
+              # Attach the HTML message body
+              msg.attach(MIMEText(html_message, 'html'))
+
+              # Send the email
+              try:
+                  response = ses.send_raw_email(
+                      Source=sender_email,
+                      Destinations=[recipient_email],
+                      RawMessage={
+                          'Data': msg.as_string()
+                      }
+                  )
+                  print(f"Email sent. Message ID: {response['MessageId']}")
+              except Exception as e:
+                  print(f"Error sending email: {e}")
+                  raise e
+
+          def send_chatbot_sns_notification(chatbot_sns_topic_arn, s3_bucket, s3_key_1, region_id, max_time, min_time):
+              data = {
+                  "version": "1.0",
+                  "source": "custom",
+                  "content": {
+                  "textType": "client-markdown",
+                  "title": ":clipboard: New Patch Operations Summary is available!",
+                  "description": f"The patch report data between {min_time} and {max_time} has been generated and uploaded to <https://s3.console.aws.amazon.com/s3/object/{s3_bucket}/{s3_key_1}?region={region_id}|*S3*>."
+                  }
+              }
+
+              # Convert the dictionary to a JSON string
+              message = json.dumps(data)
+
+              # Create an SNS client
+              sns = boto3.client('sns')
+
+              # Publish message to SNS topic
+              response = sns.publish(
+                  TopicArn=chatbot_sns_topic_arn,
+                  Message=message
+              )
+      Environment:
+        Variables:
+          !If
+          - SNSEmailResource
+          - TABLE1_NAME: !Ref PatchInvocationDynamoDBTable
+            TABLE2_NAME: !Ref PatchOperationDynamoDBTable
+            S3_BUCKET_NAME: !Ref PatchingReportS3Bucket
+            REGION_ID: !Ref "AWS::Region"
+            EMAIL_SERVICE: !Ref EmailService
+            TIME_TO_LIVE: !Ref TimeToLive
+            SNS_TOPIC_ARN: !Ref PatchingReportEmailSNSTopic
+            CHATBOT_SNS_TOPIC_ARN: !If [ChatbotResource, !Ref PatchingReportChatbotSNSTopic, ""]
+          - TABLE1_NAME: !Ref PatchInvocationDynamoDBTable
+            TABLE2_NAME: !Ref PatchOperationDynamoDBTable
+            S3_BUCKET_NAME: !Ref PatchingReportS3Bucket
+            REGION_ID: !Ref "AWS::Region"
+            EMAIL_SERVICE: !Ref EmailService
+            TIME_TO_LIVE: !Ref TimeToLive
+            RECIPIENT_EMAIL: !Ref RecipientEmail
+            SENDER_EMAIL: !Ref SenderEmail
+            CHATBOT_SNS_TOPIC_ARN: !If [ChatbotResource, !Ref PatchingReportChatbotSNSTopic, ""]
+      Handler: index.handler
+      Role: !GetAtt PatchReportingLambdaFunctionRole.Arn
+      Runtime: python3.12
+      Timeout: 900
+      LoggingConfig:
+        LogGroup: !Ref LambdaFunctionLogGroup
+      Tags:
+        - Key: cloudformation:logical-id
+          Value: PatchReportingLambdaFunction
+        - Key: cloudformation:stack-id
+          Value: !Ref AWS::StackId
+        - Key: cloudformation:stack-name
+          Value: !Ref AWS::StackName
+  LambdaFunctionLogGroup:
+    Type: AWS::Logs::LogGroup
+    Properties:
+      RetentionInDays: 30
+      Tags:
+        - Key: cloudformation:logical-id
+          Value: LambdaFunctionLogGroup
+        - Key: cloudformation:stack-id
+          Value: !Ref AWS::StackId
+        - Key: cloudformation:stack-name
+          Value: !Ref AWS::StackName
+  PatchReportingScheduler:
+    Type: AWS::Events::Rule
+    Properties:
+      Description: !Sub "Amazon EventBridge rule to invoke lambda function ${PatchReportingLambdaFunction} on specified schedule. CloudFormation stack name: ${AWS::StackName}."
+      ScheduleExpression:
+        Ref: EventBridgeRuleSchedule
+      State: ENABLED
+      Targets:
+        - Arn:
+            !GetAtt PatchReportingLambdaFunction.Arn
+          Id: ReportGenerator
+  PatchingReportStateMachineRole:
+    Type: AWS::IAM::Role
+    Properties:
+      Description: !Sub "IAM role for AWS Step Functions. This is created as a part of a CloudFormation stack name: ${AWS::StackName}."
+      AssumeRolePolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service:
+                - states.amazonaws.com
+            Action: sts:AssumeRole
+      Path: "/"
+      Policies:
+        - PolicyName: StepFunctionExec
+          PolicyDocument:
+            Version: "2012-10-17"
+            Statement:
+              - Effect: Allow
+                Action:
+                  - dynamodb:PutItem
+                Resource:
+                  - !GetAtt PatchInvocationDynamoDBTable.Arn
+                  - !GetAtt PatchOperationDynamoDBTable.Arn
+              - Effect: Allow
+                Action:
+                  - logs:CreateLogDelivery
+                  - logs:CreateLogStream
+                  - logs:GetLogDelivery
+                  - logs:UpdateLogDelivery
+                  - logs:DeleteLogDelivery
+                  - logs:ListLogDeliveries
+                  - logs:PutLogEvents
+                  - logs:PutResourcePolicy
+                  - logs:DescribeResourcePolicies
+                  - logs:DescribeLogGroups
+                Resource: "*"
+      Tags:
+        - Key: cloudformation:logical-id
+          Value: PatchingReportStateMachineRole
+        - Key: cloudformation:stack-id
+          Value: !Ref AWS::StackId
+        - Key: cloudformation:stack-name
+          Value: !Ref AWS::StackName
+  PatchInvocationStateMachineLogGroup:
+    Type: AWS::Logs::LogGroup
+    Properties:
+      RetentionInDays: 30
+      Tags:
+        - Key: cloudformation:logical-id
+          Value: PatchInvocationStateMachineLogGroup
+        - Key: cloudformation:stack-id
+          Value: !Ref AWS::StackId
+        - Key: cloudformation:stack-name
+          Value: !Ref AWS::StackName
+  PatchOperationStateMachineLogGroup:
+    Type: AWS::Logs::LogGroup
+    Properties:
+      RetentionInDays: 30
+      Tags:
+        - Key: cloudformation:logical-id
+          Value: PatchOperationStateMachineLogGroup
+        - Key: cloudformation:stack-id
+          Value: !Ref AWS::StackId
+        - Key: cloudformation:stack-name
+          Value: !Ref AWS::StackName
+  PatchInvocationStateMachine:
+    Type: AWS::StepFunctions::StateMachine
+    Properties:
+      StateMachineType: EXPRESS
+      RoleArn: !GetAtt PatchingReportStateMachineRole.Arn
+      LoggingConfiguration:
+        Destinations:
+          - CloudWatchLogsLogGroup:
+              LogGroupArn: !GetAtt PatchInvocationStateMachineLogGroup.Arn
+        IncludeExecutionData: True
+        Level: ALL
+      DefinitionString: !Sub |-
+        {
+          "Comment": "State Machine for Patch Invocation data",
+          "StartAt": "DynamoDB PutItem",
+          "States": {
+            "DynamoDB PutItem": {
+              "Type": "Task",
+              "Resource": "arn:${AWS::Partition}:states:::dynamodb:putItem",
+              "Parameters": {
+                "TableName": "${PatchInvocationDynamoDBTable.Arn}",
+                "Item": {
+                  "AccountId": {
+                    "S.$": "$.account"
+                  },
+                  "CommandId": {
+                    "S.$": "$.detail.command-id"
+                  },
+                  "DocumentName": {
+                    "S.$": "$.detail.document-name"
+                  },
+                  "InstanceId": {
+                    "S.$": "$.detail.instance-id"
+                  },
+                  "RequestedDateTime": {
+                    "S.$": "$.detail.requested-date-time"
+                  },
+                  "Status": {
+                    "S.$": "$.detail.status"
+                  },
+                  "DetailType": {
+                    "S.$": "$.detail-type"
+                  },
+                  "Id": {
+                    "S.$": "$.id"
+                  },
+                  "Region": {
+                    "S.$": "$.region"
+                  },
+                  "Resources": {
+                    "S.$": "$.resources[0]"
+                  },
+                  "Source": {
+                    "S.$": "$.source"
+                  },
+                  "Time": {
+                    "S.$": "$.time"
+                  },
+                  "Version": {
+                    "S.$": "$.version"
+                  },
+                  "DataProcessed": {
+                    "S": "no"
+                  }
+                }
+              },
+              "End": true
+            }
+          }
+        }
+      Tags:
+        - Key: cloudformation:logical-id
+          Value: PatchInvocationStateMachine
+        - Key: cloudformation:stack-id
+          Value: !Ref AWS::StackId
+        - Key: cloudformation:stack-name
+          Value: !Ref AWS::StackName
+  PatchOperationStateMachine:
+    Type: AWS::StepFunctions::StateMachine
+    Properties:
+      StateMachineType: EXPRESS
+      RoleArn: !GetAtt PatchingReportStateMachineRole.Arn
+      LoggingConfiguration:
+        Destinations:
+          - CloudWatchLogsLogGroup:
+              LogGroupArn: !GetAtt PatchOperationStateMachineLogGroup.Arn
+        IncludeExecutionData: True
+        Level: ALL
+      DefinitionString: !Sub |-
+        {
+          "Comment": "State Machine for Patch Operation data",
+          "StartAt": "ParseJson",
+          "States": {
+            "ParseJson": {
+              "Type": "Pass",
+              "Next": "CheckBaselineOverridePresent",
+              "Parameters": {
+                "ParametersJson.$": "States.StringToJson($.detail.parameters)"
+              },
+              "ResultPath": "$.parsedParameters"
+            },
+            "CheckBaselineOverridePresent": {
+              "Type": "Choice",
+              "Choices": [
+                {
+                  "Variable": "$.parsedParameters.ParametersJson.BaselineOverride",
+                  "IsPresent": true,
+                  "Next": "CheckAssociationIdPresent"
+                }
+              ],
+              "Default": "AddBlankBaselineOverride"
+            },
+            "AddBlankBaselineOverride": {
+              "Type": "Pass",
+              "Result": [
+                ""
+              ],
+              "ResultPath": "$.parsedParameters.ParametersJson.BaselineOverride",
+              "Next": "CheckAssociationIdPresent"
+            },
+            "CheckAssociationIdPresent": {
+              "Type": "Choice",
+              "Choices": [
+                {
+                  "Variable": "$.parsedParameters.ParametersJson.AssociationId",
+                  "IsPresent": true,
+                  "Next": "CheckRebootOptionPresent"
+                }
+              ],
+              "Default": "AddBlankAssociationId"
+            },
+            "AddBlankAssociationId": {
+              "Type": "Pass",
+              "Result": [
+                ""
+              ],
+              "ResultPath": "$.parsedParameters.ParametersJson.AssociationId",
+              "Next": "CheckRebootOptionPresent"
+            },
+            "CheckRebootOptionPresent": {
+              "Type": "Choice",
+              "Choices": [
+                {
+                  "Variable": "$.parsedParameters.ParametersJson.RebootOption",
+                  "IsPresent": true,
+                  "Next": "CheckSnapshotIdPresent"
+                }
+              ],
+              "Default": "AddBlankRebootOption"
+            },
+            "AddBlankRebootOption": {
+              "Type": "Pass",
+              "Result": [
+                ""
+              ],
+              "ResultPath": "$.parsedParameters.ParametersJson.RebootOption",
+              "Next": "CheckSnapshotIdPresent"
+            },
+            "CheckSnapshotIdPresent": {
+              "Type": "Choice",
+              "Choices": [
+                {
+                  "Variable": "$.parsedParameters.ParametersJson.SnapshotId",
+                  "IsPresent": true,
+                  "Next": "CheckInstallOverrideListPresent"
+                }
+              ],
+              "Default": "AddBlankSnapshotId"
+            },
+            "AddBlankSnapshotId": {
+              "Type": "Pass",
+              "Result": [
+                ""
+              ],
+              "ResultPath": "$.parsedParameters.ParametersJson.SnapshotId",
+              "Next": "CheckInstallOverrideListPresent"
+            },
+            "CheckInstallOverrideListPresent": {
+              "Type": "Choice",
+              "Choices": [
+                {
+                  "Variable": "$.parsedParameters.ParametersJson.InstallOverrideList",
+                  "IsPresent": true,
+                  "Next": "DynamoDBPutItem"
+                }
+              ],
+              "Default": "AddBlankInstallOverrideList"
+            },
+            "AddBlankInstallOverrideList": {
+              "Type": "Pass",
+              "Result": [
+                ""
+              ],
+              "ResultPath": "$.parsedParameters.ParametersJson.InstallOverrideList",
+              "Next": "DynamoDBPutItem"
+            },
+            "DynamoDBPutItem": {
+              "Type": "Task",
+              "Resource": "arn:${AWS::Partition}:states:::dynamodb:putItem",
+              "Parameters": {
+                "TableName": "${PatchOperationDynamoDBTable}",
+                "Item": {
+                  "AccountId": {
+                    "S.$": "$.account"
+                  },
+                  "CommandId": {
+                    "S.$": "$.detail.command-id"
+                  },
+                  "DocumentName": {
+                    "S.$": "$.detail.document-name"
+                  },
+                  "RequestedDateTime": {
+                    "S.$": "$.detail.requested-date-time"
+                  },
+                  "Status": {
+                    "S.$": "$.detail.status"
+                  },
+                  "DetailType": {
+                    "S.$": "$.detail-type"
+                  },
+                  "Id": {
+                    "S.$": "$.id"
+                  },
+                  "Region": {
+                    "S.$": "$.region"
+                  },
+                  "Source": {
+                    "S.$": "$.source"
+                  },
+                  "Time": {
+                    "S.$": "$.time"
+                  },
+                  "Version": {
+                    "S.$": "$.version"
+                  },
+                  "Operation": {
+                    "S.$": "$.parsedParameters.ParametersJson.Operation[0]"
+                  },
+                  "BaselineOverride": {
+                    "S.$": "$.parsedParameters.ParametersJson.BaselineOverride[0]"
+                  },
+                  "RebootOption": {
+                    "S.$": "$.parsedParameters.ParametersJson.RebootOption[0]"
+                  },
+                  "AssociationId": {
+                    "S.$": "$.parsedParameters.ParametersJson.AssociationId[0]"
+                  },
+                  "SnapshotId": {
+                    "S.$": "$.parsedParameters.ParametersJson.SnapshotId[0]"
+                  },
+                  "InstallOverrideList": {
+                    "S.$": "$.parsedParameters.ParametersJson.InstallOverrideList[0]"
+                  },
+                  "DataProcessed": {
+                    "S": "no"
+                  }
+                }
+              },
+              "End": true
+            }
+          }
+        }
+      Tags:
+        - Key: cloudformation:logical-id
+          Value: PatchOperationStateMachine
+        - Key: cloudformation:stack-id
+          Value: !Ref AWS::StackId
+        - Key: cloudformation:stack-name
+          Value: !Ref AWS::StackName
+  PatchingReportS3Bucket:
+    Type: AWS::S3::Bucket
+    Properties:
+      OwnershipControls:
+        Rules:
+          - ObjectOwnership: BucketOwnerEnforced
+      Tags:
+        - Key: cloudformation:logical-id
+          Value: PatchingReportS3Bucket
+        - Key: cloudformation:stack-id
+          Value: !Ref AWS::StackId
+        - Key: cloudformation:stack-name
+          Value: !Ref AWS::StackName
+  PatchInvocationDynamoDBTable:
+    Type: AWS::DynamoDB::Table
+    Properties:
+      BillingMode: PAY_PER_REQUEST
+      AttributeDefinitions:
+        - AttributeName: CommandId
+          AttributeType: S
+        - AttributeName: Id
+          AttributeType: S
+      KeySchema:
+        - AttributeName: Id
+          KeyType: HASH
+        - AttributeName: CommandId
+          KeyType: RANGE
+      TimeToLiveSpecification:
+        AttributeName: TimeToLive
+        Enabled: true
+      Tags:
+        - Key: cloudformation:logical-id
+          Value: PatchInvocationDynamoDBTable
+        - Key: cloudformation:stack-id
+          Value: !Ref AWS::StackId
+        - Key: cloudformation:stack-name
+          Value: !Ref AWS::StackName
+  PatchOperationDynamoDBTable:
+    Type: AWS::DynamoDB::Table
+    Properties:
+      BillingMode: PAY_PER_REQUEST
+      AttributeDefinitions:
+        - AttributeName: CommandId
+          AttributeType: S
+        - AttributeName: Id
+          AttributeType: S
+      KeySchema:
+        - AttributeName: Id
+          KeyType: HASH
+        - AttributeName: CommandId
+          KeyType: RANGE
+      TimeToLiveSpecification:
+        AttributeName: TimeToLive
+        Enabled: true
+      Tags:
+        - Key: cloudformation:logical-id
+          Value: PatchOperationDynamoDBTable
+        - Key: cloudformation:stack-id
+          Value: !Ref AWS::StackId
+        - Key: cloudformation:stack-name
+          Value: !Ref AWS::StackName
+  PatchingReportEventBridgeRuleRole:
+    Type: AWS::IAM::Role
+    Properties:
+      Description: !Sub "IAM role for Amazon EventBridge rules. This is created as a part of a CloudFormation stack name: ${AWS::StackName}."
+      AssumeRolePolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service:
+                - events.amazonaws.com
+            Action:
+              - sts:AssumeRole
+      Policies:
+        - PolicyDocument:
+            Version: "2012-10-17"
+            Statement:
+              - Effect: Allow
+                Action:
+                  - states:StartExecution
+                Resource:
+                  - !Ref PatchInvocationStateMachine
+                  - !Ref PatchOperationStateMachine
+          PolicyName: StartStateMachinePolicy
+        - PolicyDocument:
+            Version: "2012-10-17"
+            Statement:
+              - Effect: Allow
+                Action:
+                  - iam:PassRole
+                Resource: !GetAtt PatchingReportStateMachineRole.Arn
+          PolicyName: StateMachinePassRolePolicy
+      Tags:
+        - Key: cloudformation:logical-id
+          Value: PatchingReportEventBridgeRuleRole
+        - Key: cloudformation:stack-id
+          Value: !Ref AWS::StackId
+        - Key: cloudformation:stack-name
+          Value: !Ref AWS::StackName
+  PatchInvocationEventBridgeRule:
+    Type: AWS::Events::Rule
+    Properties:
+      Description: !Sub "Amazon EventBridge rule for each run command invocation. This is created as a part of a CloudFormation stack name: ${AWS::StackName}."
+      EventPattern:
+        source:
+          - aws.ssm
+        detail-type:
+          - EC2 Command Invocation Status-change Notification
+        detail:
+          document-name:
+            - AWS-RunPatchBaseline
+            - AWS-RunPatchBaselineAssociation
+            - AWS-RunPatchBaselineWithHooks
+            - AWS-ConfigureWindowsUpdate
+            - AWS-InstallWindowsUpdates
+          status:
+            - Success
+            - Failed
+            - Cancelled
+            - TimedOut
+            - DeliveryTimedOut
+            - ExecutionTimedOut
+            - Undeliverable
+            - Terminated
+            - InvalidPlatform
+            - AccessDenied
+      Targets:
+        - Arn: !Ref PatchInvocationStateMachine
+          Id: PatchInvocationEventBridgeRule
+          RoleArn: !GetAtt PatchingReportEventBridgeRuleRole.Arn
+  PatchOperationEventBridgeRule:
+    Type: AWS::Events::Rule
+    Properties:
+      Description: !Sub "Amazon EventBridge rule for each run command. This is created as a part of a CloudFormation stack name: ${AWS::StackName}."
+      EventPattern:
+        source:
+          - aws.ssm
+        detail-type:
+          - EC2 Command Status-change Notification
+        detail:
+          document-name:
+            - AWS-RunPatchBaseline
+            - AWS-RunPatchBaselineAssociation
+            - AWS-RunPatchBaselineWithHooks
+            - AWS-ConfigureWindowsUpdate
+            - AWS-InstallWindowsUpdates
+          status:
+            - Success
+            - Failed
+            - Cancelled
+            - TimedOut
+            - DeliveryTimedOut
+            - Incomplete
+            - RateExceeded
+            - AccessDenied
+            - No Instances In Tag
+      Targets:
+        - Arn: !Ref PatchOperationStateMachine
+          Id: PatchOperationEventBridgeRule
+          RoleArn: !GetAtt PatchingReportEventBridgeRuleRole.Arn
+  PatchingReportEmailSNSTopic:
+    Condition: SNSEmailResource
+    Type: AWS::SNS::Topic
+    Properties:
+      Subscription:
+        - Endpoint: !Ref RecipientEmail
+          Protocol: email
+      Tags:
+        - Key: cloudformation:logical-id
+          Value: PatchingReportEmailSNSTopic
+        - Key: cloudformation:stack-id
+          Value: !Ref AWS::StackId
+        - Key: cloudformation:stack-name
+          Value: !Ref AWS::StackName
+  PatchingReportEmailSNSPolicy:
+    Condition: SNSEmailResource
+    Type: AWS::SNS::TopicPolicy
+    Properties:
+      PolicyDocument:
+        Id: !Sub PatchReportSNSPolicy-${AWS::StackName}
+        Version: "2012-10-17"
+        Statement:
+          - Sid: !Sub AllowLambda-${AWS::StackName}
+            Effect: Allow
+            Principal:
+              Service: lambda.amazonaws.com
+            Action: sns:Publish
+            Resource:
+              - !Ref PatchingReportEmailSNSTopic
+            Condition:
+              StringEquals:
+                "aws:SourceAccount": !Ref "AWS::AccountId"
+      Topics:
+        - !Ref PatchingReportEmailSNSTopic
+  PatchingReportChatbotSNSPolicy:
+    Condition: ChatbotResource
+    Type: AWS::SNS::TopicPolicy
+    Properties:
+      PolicyDocument:
+        Id: !Sub PatchReportSNSPolicy-${AWS::StackName}
+        Version: "2012-10-17"
+        Statement:
+          - Sid: !Sub AllowLambda-${AWS::StackName}
+            Effect: Allow
+            Principal:
+              Service: lambda.amazonaws.com
+            Action: sns:Publish
+            Resource:
+              - !Ref PatchingReportChatbotSNSTopic
+            Condition:
+              StringEquals:
+                "aws:SourceAccount": !Ref "AWS::AccountId"
+      Topics:
+        - !Ref PatchingReportChatbotSNSTopic
+  PatchingReportChatbotSNSTopic:
+    Condition: ChatbotResource
+    Type: AWS::SNS::Topic
+    Properties:
+      Tags:
+        - Key: cloudformation:logical-id
+          Value: PatchingReportChatbotSNSTopic
+        - Key: cloudformation:stack-id
+          Value: !Ref AWS::StackId
+        - Key: cloudformation:stack-name
+          Value: !Ref AWS::StackName
+Outputs:
+  PatchingReportS3Bucket:
+    Description: The name of the Amazon S3 bucket.
+    Value: !Ref PatchingReportS3Bucket
+  ChatbotSNSTopic:
+    Condition: ChatbotResource
+    Description: The topic name of the PatchingReportChatbotSNSTopic.
+    Value: !GetAtt PatchingReportChatbotSNSTopic.TopicName
+  PatchingReportEmailSNSTopic:
+    Condition: SNSEmailResource
+    Description: The topic name of the PatchingReportEmailSNSTopic.
+    Value: !GetAtt PatchingReportEmailSNSTopic.TopicName

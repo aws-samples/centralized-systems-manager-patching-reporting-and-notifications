@@ -1,0 +1,161 @@
+---
+# Copyright Amazon.com, Inc. or its affiliates. All Rights Reserved.
+# SPDX-License-Identifier: MIT-0
+
+# Permission is hereby granted, free of charge, to any person obtaining a copy of this
+# software and associated documentation files (the "Software"), to deal in the Software
+# without restriction, including without limitation the rights to use, copy, modify,
+# merge, publish, distribute, sublicense, and/or sell copies of the Software, and to
+# permit persons to whom the Software is furnished to do so.
+
+# THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLIED,
+# INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY, FITNESS FOR A
+# PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT
+# HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION
+# OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE
+# SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
+
+AWSTemplateFormatVersion: "2010-09-09"
+Description:
+  AWS CloudFormation template to create a patch report for multi-account using Amazon DynamoDB, Amazon EventBridge,
+  AWS Lambda, and Run Command, a capability of AWS Systems Manager.
+Metadata:
+  AWS::CloudFormation::Interface:
+    ParameterGroups:
+      - Label:
+          default: "Member Account(s)"
+        Parameters:
+          - PatchInvocationEventBusArn
+          - PatchOperationEventBusArn
+    ParameterLabels:
+      PatchInvocationEventBusArn:
+        default: "Patch Invocation Event Bus Arn"
+      PatchOperationEventBusArn:
+        default: "Patch Operation Event Bus Arn"
+Parameters:
+  PatchInvocationEventBusArn:
+    Type: String
+    Description: >-
+      Required when MemberAccount parameter set to true. Generated after running this CloudFormation on the central account.
+  PatchOperationEventBusArn:
+    Type: String
+    Description: >-
+      Required when MemberAccount parameter set to true. Generated after running this CloudFormation on the central account.
+Rules:
+  MemberAccountParameters:
+    Assertions:
+      - Assert:
+          !Not
+            - !And
+              - !Equals
+                  - !Ref PatchInvocationEventBusArn
+                  - ""
+              - !Equals
+                  - !Ref PatchOperationEventBusArn
+                  - ""
+        AssertDescription: "PatchInvocationEventBusArn and PatchOperationEventBusArn parameters can't be empty"
+      - Assert:
+          !Not
+            - !Equals
+                - !Ref PatchInvocationEventBusArn
+                - ""
+        AssertDescription: "PatchInvocationEventBusArn parameter can't be empty"
+      - Assert:
+          !Not
+            - !Equals
+                - !Ref PatchOperationEventBusArn
+                - ""
+        AssertDescription: "PatchOperationEventBusArn parameter can't be empty"
+Resources:
+  PatchInvocationEventBridgeRule:
+    Type: AWS::Events::Rule
+    Properties:
+      Description: !Sub "Amazon EventBridge rule for each run command invocation. This is created as a part of a CloudFormation stack name: ${AWS::StackName}."
+      EventPattern:
+        source:
+          - aws.ssm
+        detail-type:
+          - EC2 Command Invocation Status-change Notification
+        detail:
+          document-name:
+            - AWS-RunPatchBaseline
+            - AWS-RunPatchBaselineAssociation
+            - AWS-RunPatchBaselineWithHooks
+            - AWS-ConfigureWindowsUpdate
+            - AWS-InstallWindowsUpdates
+          status:
+            - Success
+            - Failed
+            - Cancelled
+            - TimedOut
+            - DeliveryTimedOut
+            - ExecutionTimedOut
+            - Undeliverable
+            - Terminated
+            - InvalidPlatform
+            - AccessDenied
+      Targets:
+        - Arn: !Ref PatchInvocationEventBusArn
+          Id: PatchInvocationEventBridgeRule
+          RoleArn: !GetAtt PatchingReportEventBridgeRuleRole.Arn
+  PatchOperationEventBridgeRule:
+    Type: AWS::Events::Rule
+    Properties:
+      Description: !Sub "Amazon EventBridge rule for each run command. This is created as a part of a CloudFormation stack name: ${AWS::StackName}."
+      EventPattern:
+        source:
+          - aws.ssm
+        detail-type:
+          - EC2 Command Status-change Notification
+        detail:
+          document-name:
+            - AWS-RunPatchBaseline
+            - AWS-RunPatchBaselineAssociation
+            - AWS-RunPatchBaselineWithHooks
+            - AWS-ConfigureWindowsUpdate
+            - AWS-InstallWindowsUpdates
+          status:
+            - Success
+            - Failed
+            - Cancelled
+            - TimedOut
+            - DeliveryTimedOut
+            - Incomplete
+            - RateExceeded
+            - AccessDenied
+            - No Instances In Tag
+      Targets:
+        - Arn: !Ref PatchOperationEventBusArn
+          Id: PatchOperationEventBridgeRule
+          RoleArn: !GetAtt PatchingReportEventBridgeRuleRole.Arn
+  PatchingReportEventBridgeRuleRole:
+    Type: "AWS::IAM::Role"
+    Properties:
+      Description: !Sub "IAM role for Amazon EventBridge rules. This is created as a part of a CloudFormation stack name: ${AWS::StackName}."
+      AssumeRolePolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Effect: "Allow"
+            Principal:
+              Service:
+                - events.amazonaws.com
+            Action:
+              - "sts:AssumeRole"
+      Policies:
+        - PolicyDocument:
+            Version: "2012-10-17"
+            Statement:
+              - Effect: Allow
+                Action:
+                  - events:PutEvents
+                Resource:
+                  - !Ref PatchOperationEventBusArn
+                  - !Ref PatchInvocationEventBusArn
+          PolicyName: AllowPutEventCentralEventBus
+      Tags:
+        - Key: cloudformation:logical-id
+          Value: PatchingReportEventBridgeRuleRole
+        - Key: cloudformation:stack-id
+          Value: !Ref AWS::StackId
+        - Key: cloudformation:stack-name
+          Value: !Ref AWS::StackName

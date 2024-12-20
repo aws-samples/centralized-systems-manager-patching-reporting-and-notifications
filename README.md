@@ -1,11 +1,18 @@
-## My Project
+# Automate Systems Manager patching reports via email and slack notifications in an AWS Organization
 
-TODO: Fill this README out!
+This repo hosts CloudFormation templates related to the AWS Cloud Operations blog post:
 
-Be sure to:
+https://aws.amazon.com/blogs/mt/
 
-* Change the title in this README
-* Edit your repository description on GitHub
+For details on how to use the corresponding CloudFormation templates, refer to the blog post.
+
+CloudFormation Templates:
+
+* [PatchingReport_Central.yaml](/Templates/CloudFormation/PatchingReport_Central.yml)
+* [PatchingReport_Member.yaml](/Templates/CloudFormation/PatchingReport_Member.yml)
+* [PatchingReport_Single.yaml](/Templates/CloudFormation/PatchingReport_Single.yaml)
+
+![Architecture diagram for Patch reporting](Images/PatchReport.png)
 
 ## Security
 
@@ -14,4 +21,3 @@ See [CONTRIBUTING](CONTRIBUTING.md#security-issue-notifications) for more inform
 ## License
 
 This library is licensed under the MIT-0 License. See the LICENSE file.
-
