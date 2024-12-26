@@ -8,8 +8,8 @@ For details on how to use the corresponding CloudFormation templates, refer to t
 
 CloudFormation Templates:
 
-* [PatchingReport_Central.yaml](/Templates/CloudFormation/PatchingReport_Central.yml)
-* [PatchingReport_Member.yaml](/Templates/CloudFormation/PatchingReport_Member.yml)
+* [PatchingReport_Central.yaml](/Templates/CloudFormation/PatchingReport_Central.yaml)
+* [PatchingReport_Member.yaml](/Templates/CloudFormation/PatchingReport_Member.yaml)
 * [PatchingReport_Single.yaml](/Templates/CloudFormation/PatchingReport_Single.yaml)
 
 ![Architecture diagram for Patch reporting](Images/PatchReport.png)
