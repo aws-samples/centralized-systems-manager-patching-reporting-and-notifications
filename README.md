@@ -2,14 +2,14 @@
 
 This repo hosts CloudFormation templates related to the AWS Cloud Operations blog post:
 
-https://aws.amazon.com/blogs/mt/
+[**Automate Systems Manager patching reports via email and slack notifications in an AWS Organization**](https://aws.amazon.com/blogs/mt/automate-systems-manager-patching-reports-via-email-and-slack-notifications-in-an-aws-organization/)
 
 For details on how to use the corresponding CloudFormation templates, refer to the blog post.
 
 CloudFormation Templates:
 
-* [PatchingReport_Central.yaml](/Templates/CloudFormation/PatchingReport_Central.yml)
-* [PatchingReport_Member.yaml](/Templates/CloudFormation/PatchingReport_Member.yml)
+* [PatchingReport_Central.yaml](/Templates/CloudFormation/PatchingReport_Central.yaml)
+* [PatchingReport_Member.yaml](/Templates/CloudFormation/PatchingReport_Member.yaml)
 * [PatchingReport_Single.yaml](/Templates/CloudFormation/PatchingReport_Single.yaml)
 
 ![Architecture diagram for Patch reporting](Images/PatchReport.png)
