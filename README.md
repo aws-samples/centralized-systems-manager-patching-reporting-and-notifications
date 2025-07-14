@@ -14,7 +14,7 @@ For details on how to use the corresponding CloudFormation templates, refer to t
 
 ### Central Account Template:
   * [PatchingReport_Central.yaml](/Templates/CloudFormation/PatchingReport_Central.yaml) or
-  * [PatchingReport_Central_MultipleSchedules.yaml](/Templates/CloudFormation/PatchingReport_Central_MultipleSchedules) (supports multiple schedules - cron or rate)
+  * [PatchingReport_Central_MultipleSchedules.yaml](/Templates/CloudFormation/PatchingReport_Central_MultipleSchedules.yaml) (supports multiple schedules - cron or rate)
 
   **Note:** For the Central account template, Stack name must not exceed 29 characters due to resource naming restrictions.
 
@@ -23,7 +23,7 @@ For details on how to use the corresponding CloudFormation templates, refer to t
 
 ### Single Account Template:
   * [PatchingReport_Single.yaml](/Templates/CloudFormation/PatchingReport_Single.yaml) or
-  * [PatchingReport_Single_MultipleSchedules.yaml](/Templates/CloudFormation/PatchingReport_Single_MultipleSchedules) (supports multiple schedules - cron or rate)
+  * [PatchingReport_Single_MultipleSchedules.yaml](/Templates/CloudFormation/PatchingReport_Single_MultipleSchedules.yaml) (supports multiple schedules - cron or rate)
 
 ## Usage
 
