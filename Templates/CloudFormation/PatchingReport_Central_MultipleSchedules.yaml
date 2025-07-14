@@ -16,6 +16,7 @@
 # SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 
 AWSTemplateFormatVersion: "2010-09-09"
+Transform: AWS::LanguageExtensions
 Description:
   AWS CloudFormation template to create a patch report for multi-account using Amazon DynamoDB, Amazon EventBridge,
   AWS Lambda, and Run Command, a capability of AWS Systems Manager.
@@ -26,7 +27,7 @@ Metadata:
           default: "Central Account"
         Parameters:
           - OrganizationID
-          - EventBridgeRuleSchedule
+          - EventBridgeRuleSchedules
           - EmailService
           - RecipientEmail
           - SenderEmail
@@ -41,13 +42,11 @@ Parameters:
     Description: AWS Organizations ID. This is used only when you plan to monitor all accounts within the specified AWS Organization. For a single account leave it empty.
     AllowedPattern: ^o-[a-z0-9]{10,32}$
     ConstraintDescription: Must be a valid AWS Organization ID starting with 'o-' followed by 10-32 lowercase letters or numbers.
-  EventBridgeRuleSchedule:
-    Type: String
+  EventBridgeRuleSchedules:
+    Type: CommaDelimitedList
     Description: >-
-      (Required) The cron or rate expression to use for the Amazon EventBridge rule. For example: cron(0 12 * * ? *) or rate(7 days). Important: The time zone used is UTC. For more information, see https://docs.aws.amazon.com/eventbridge/latest/userguide/scheduled-events.html.
-    Default: cron(0 12 * * ? *)
-    AllowedPattern: "^(?:rate[(](?:(?:1[ ]+(hour|minute|day))|(?:[0-9]+[ ]+(hours|minutes|days)))[)])|(?:cron[(](?:(?:(?:[0-5]?[0-9])|[*])(?:(?:[-](?:(?:[0-5]?[0-9])|[*]))|(?:[/][0-9]+))?(?:[,](?:(?:[0-5]?[0-9])|[*])(?:(?:[-](?:(?:[0-5]?[0-9])|[*]))|(?:[/][0-9]+))?)*)[ ]+(?:(?:(?:[0-2]?[0-9])|[*])(?:(?:[-](?:(?:[0-2]?[0-9])|[*]))|(?:[/][0-9]+))?(?:[,](?:(?:[0-2]?[0-9])|[*])(?:(?:[-](?:(?:[0-2]?[0-9])|[*]))|(?:[/][0-9]+))?)*)[ ]+(?:(?:[?][ ]+(?:(?:(?:[1]?[0-9])|(?:JAN|FEB|MAR|APR|MAY|JUN|JUL|AUG|SEP|OCT|NOV|DEC)|[*])(?:(?:[-](?:(?:[1]?[0-9])|(?:JAN|FEB|MAR|APR|MAY|JUN|JUL|AUG|SEP|OCT|NOV|DEC)|[*])(?:[/][0-9]+)?)|(?:[/][0-9]+))?(?:[,](?:(?:[1]?[0-9])|(?:JAN|FEB|MAR|APR|MAY|JUN|JUL|AUG|SEP|OCT|NOV|DEC)|[*])(?:(?:[-](?:(?:[1]?[0-9])|(?:JAN|FEB|MAR|APR|MAY|JUN|JUL|AUG|SEP|OCT|NOV|DEC)|[*])(?:[/][0-9]+)?)|(?:[/][0-9]+))?)*)[ ]+(?:(?:(?:[1-7]|(?:SUN|MON|TUE|WED|THU|FRI|SAT))[#][0-5])|(?:(?:(?:(?:[1-7]|(?:SUN|MON|TUE|WED|THU|FRI|SAT))L?)|[L*])(?:(?:[-](?:(?:(?:[1-7]|(?:SUN|MON|TUE|WED|THU|FRI|SAT))L?)|[L*]))|(?:[/][0-9]+))?(?:[,](?:(?:(?:[1-7]|(?:SUN|MON|TUE|WED|THU|FRI|SAT))L?)|[L*])(?:(?:[-](?:(?:(?:[1-7]|(?:SUN|MON|TUE|WED|THU|FRI|SAT))L?)|[L*]))|(?:[/][0-9]+))?)*)))|(?:(?:(?:(?:(?:[1-3]?[0-9])W?)|LW|[L*])(?:(?:[-](?:(?:(?:[1-3]?[0-9])W?)|LW|[L*]))|(?:[/][0-9]+))?(?:[,](?:(?:(?:[1-3]?[0-9])W?)|LW|[L*])(?:(?:[-](?:(?:(?:[1-3]?[0-9])W?)|LW|[L*]))|(?:[/][0-9]+))?)*)[ ]+(?:(?:(?:[1]?[0-9])|(?:JAN|FEB|MAR|APR|MAY|JUN|JUL|AUG|SEP|OCT|NOV|DEC)|[*])(?:(?:[-](?:(?:[1]?[0-9])|(?:JAN|FEB|MAR|APR|MAY|JUN|JUL|AUG|SEP|OCT|NOV|DEC)|[*])(?:[/][0-9]+)?)|(?:[/][0-9]+))?(?:[,](?:(?:[1]?[0-9])|(?:JAN|FEB|MAR|APR|MAY|JUN|JUL|AUG|SEP|OCT|NOV|DEC)|[*])(?:(?:[-](?:(?:[1]?[0-9])|(?:JAN|FEB|MAR|APR|MAY|JUN|JUL|AUG|SEP|OCT|NOV|DEC)|[*])(?:[/][0-9]+)?)|(?:[/][0-9]+))?)*)[ ]+[?]))[ ]+(?:(?:(?:[12][0-9]{3})|[*])(?:(?:[-](?:(?:[12][0-9]{3})|[*]))|(?:[/][0-9]+))?(?:[,](?:(?:[12][0-9]{3})|[*])(?:(?:[-](?:(?:[12][0-9]{3})|[*]))|(?:[/][0-9]+))?)*)[)])$"
-    ConstraintDescription: "Rate or cron format in https://docs.aws.amazon.com/eventbridge/latest/userguide/scheduled-events.html."
+      (Required) The list of cron or rate expressions to use for the Amazon EventBridge rule. For example: cron(0 12 * * ? *) or rate(7 days). Important: The time zone used is UTC. For more information, see https://docs.aws.amazon.com/eventbridge/latest/userguide/scheduled-events.html.
+    Default: cron(0 6 ? * SAT *),cron(0 6 ? * SUN *),cron(0 23 ? * 3#2 *)
   EmailService:
     Type: String
     Description: "(Required) Service to be used for the patch summary email."
@@ -126,8 +125,7 @@ Resources:
         Ref: PatchReportingLambdaFunction
       Action: lambda:InvokeFunction
       Principal: events.amazonaws.com
-      SourceArn:
-        !GetAtt PatchReportingScheduler.Arn
+      SourceArn: !Sub "arn:${AWS::Partition}:events:${AWS::Region}:${AWS::AccountId}:rule/${AWS::StackName}-PatchReportingSchedulercr*"
   PatchReportingLambdaFunctionRole:
     Type: AWS::IAM::Role
     Properties:
@@ -784,17 +782,18 @@ Resources:
           Value: !Ref AWS::StackId
         - Key: cloudformation:stack-name
           Value: !Ref AWS::StackName
-  PatchReportingScheduler:
-    Type: AWS::Events::Rule
-    Properties:
-      Description: !Sub "Amazon EventBridge rule to invoke lambda function ${PatchReportingLambdaFunction} on specified schedule. CloudFormation stack name: ${AWS::StackName}."
-      ScheduleExpression:
-        Ref: EventBridgeRuleSchedule
-      State: ENABLED
-      Targets:
-        - Arn:
-            !GetAtt PatchReportingLambdaFunction.Arn
-          Id: ReportGenerator
+  Fn::ForEach::Scheduler:
+    - InputScheduleExpression
+    - !Ref EventBridgeRuleSchedules
+    - 'PatchReportingScheduler&{InputScheduleExpression}':
+        Type: 'AWS::Events::Rule'
+        Properties:
+          Description: !Sub "Amazon EventBridge rule to invoke lambda function ${PatchReportingLambdaFunction} on specified schedule ${InputScheduleExpression}. CloudFormation stack name: ${AWS::StackName}."
+          ScheduleExpression: !Ref InputScheduleExpression
+          State: ENABLED
+          Targets:
+            - Arn: !GetAtt PatchReportingLambdaFunction.Arn
+              Id: !Sub 'ReportGeneratorLambdaFunction'
   PatchingReportStateMachineRole:
     Type: AWS::IAM::Role
     Properties:

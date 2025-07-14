@@ -54,8 +54,6 @@ Parameters:
   SenderEmail:
     Type: String
     Description: "Required when EmailService parameter set to SES. Email address to send the patch summary report."
-    AllowedPattern: ^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$
-    ConstraintDescription: Must be a valid email address.
   TimeToLive:
     Type: Number
     Description: "(Required) TimeToLive in days for DynamoDB items after processed."

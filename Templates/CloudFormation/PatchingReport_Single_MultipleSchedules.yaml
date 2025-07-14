@@ -16,38 +16,28 @@
 # SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 
 AWSTemplateFormatVersion: "2010-09-09"
+Transform: AWS::LanguageExtensions
 Description:
-  AWS CloudFormation template to create a patch report for multi-account using Amazon DynamoDB, Amazon EventBridge,
+  AWS CloudFormation template to create a patch report for a single account using Amazon DynamoDB, Amazon EventBridge,
   AWS Lambda, and Run Command, a capability of AWS Systems Manager.
 Metadata:
   AWS::CloudFormation::Interface:
     ParameterGroups:
       - Label:
-          default: "Central Account"
+          default: "Single Account"
         Parameters:
-          - OrganizationID
-          - EventBridgeRuleSchedule
+          - EventBridgeRuleSchedules
           - EmailService
           - RecipientEmail
           - SenderEmail
           - TimeToLive
           - Chatbot
-    ParameterLabels:
-      OrganizationID:
-        default: "Organization ID"
 Parameters:
-  OrganizationID:
-    Type: String
-    Description: AWS Organizations ID. This is used only when you plan to monitor all accounts within the specified AWS Organization. For a single account leave it empty.
-    AllowedPattern: ^o-[a-z0-9]{10,32}$
-    ConstraintDescription: Must be a valid AWS Organization ID starting with 'o-' followed by 10-32 lowercase letters or numbers.
-  EventBridgeRuleSchedule:
-    Type: String
+  EventBridgeRuleSchedules:
+    Type: CommaDelimitedList
     Description: >-
-      (Required) The cron or rate expression to use for the Amazon EventBridge rule. For example: cron(0 12 * * ? *) or rate(7 days). Important: The time zone used is UTC. For more information, see https://docs.aws.amazon.com/eventbridge/latest/userguide/scheduled-events.html.
-    Default: cron(0 12 * * ? *)
-    AllowedPattern: "^(?:rate[(](?:(?:1[ ]+(hour|minute|day))|(?:[0-9]+[ ]+(hours|minutes|days)))[)])|(?:cron[(](?:(?:(?:[0-5]?[0-9])|[*])(?:(?:[-](?:(?:[0-5]?[0-9])|[*]))|(?:[/][0-9]+))?(?:[,](?:(?:[0-5]?[0-9])|[*])(?:(?:[-](?:(?:[0-5]?[0-9])|[*]))|(?:[/][0-9]+))?)*)[ ]+(?:(?:(?:[0-2]?[0-9])|[*])(?:(?:[-](?:(?:[0-2]?[0-9])|[*]))|(?:[/][0-9]+))?(?:[,](?:(?:[0-2]?[0-9])|[*])(?:(?:[-](?:(?:[0-2]?[0-9])|[*]))|(?:[/][0-9]+))?)*)[ ]+(?:(?:[?][ ]+(?:(?:(?:[1]?[0-9])|(?:JAN|FEB|MAR|APR|MAY|JUN|JUL|AUG|SEP|OCT|NOV|DEC)|[*])(?:(?:[-](?:(?:[1]?[0-9])|(?:JAN|FEB|MAR|APR|MAY|JUN|JUL|AUG|SEP|OCT|NOV|DEC)|[*])(?:[/][0-9]+)?)|(?:[/][0-9]+))?(?:[,](?:(?:[1]?[0-9])|(?:JAN|FEB|MAR|APR|MAY|JUN|JUL|AUG|SEP|OCT|NOV|DEC)|[*])(?:(?:[-](?:(?:[1]?[0-9])|(?:JAN|FEB|MAR|APR|MAY|JUN|JUL|AUG|SEP|OCT|NOV|DEC)|[*])(?:[/][0-9]+)?)|(?:[/][0-9]+))?)*)[ ]+(?:(?:(?:[1-7]|(?:SUN|MON|TUE|WED|THU|FRI|SAT))[#][0-5])|(?:(?:(?:(?:[1-7]|(?:SUN|MON|TUE|WED|THU|FRI|SAT))L?)|[L*])(?:(?:[-](?:(?:(?:[1-7]|(?:SUN|MON|TUE|WED|THU|FRI|SAT))L?)|[L*]))|(?:[/][0-9]+))?(?:[,](?:(?:(?:[1-7]|(?:SUN|MON|TUE|WED|THU|FRI|SAT))L?)|[L*])(?:(?:[-](?:(?:(?:[1-7]|(?:SUN|MON|TUE|WED|THU|FRI|SAT))L?)|[L*]))|(?:[/][0-9]+))?)*)))|(?:(?:(?:(?:(?:[1-3]?[0-9])W?)|LW|[L*])(?:(?:[-](?:(?:(?:[1-3]?[0-9])W?)|LW|[L*]))|(?:[/][0-9]+))?(?:[,](?:(?:(?:[1-3]?[0-9])W?)|LW|[L*])(?:(?:[-](?:(?:(?:[1-3]?[0-9])W?)|LW|[L*]))|(?:[/][0-9]+))?)*)[ ]+(?:(?:(?:[1]?[0-9])|(?:JAN|FEB|MAR|APR|MAY|JUN|JUL|AUG|SEP|OCT|NOV|DEC)|[*])(?:(?:[-](?:(?:[1]?[0-9])|(?:JAN|FEB|MAR|APR|MAY|JUN|JUL|AUG|SEP|OCT|NOV|DEC)|[*])(?:[/][0-9]+)?)|(?:[/][0-9]+))?(?:[,](?:(?:[1]?[0-9])|(?:JAN|FEB|MAR|APR|MAY|JUN|JUL|AUG|SEP|OCT|NOV|DEC)|[*])(?:(?:[-](?:(?:[1]?[0-9])|(?:JAN|FEB|MAR|APR|MAY|JUN|JUL|AUG|SEP|OCT|NOV|DEC)|[*])(?:[/][0-9]+)?)|(?:[/][0-9]+))?)*)[ ]+[?]))[ ]+(?:(?:(?:[12][0-9]{3})|[*])(?:(?:[-](?:(?:[12][0-9]{3})|[*]))|(?:[/][0-9]+))?(?:[,](?:(?:[12][0-9]{3})|[*])(?:(?:[-](?:(?:[12][0-9]{3})|[*]))|(?:[/][0-9]+))?)*)[)])$"
-    ConstraintDescription: "Rate or cron format in https://docs.aws.amazon.com/eventbridge/latest/userguide/scheduled-events.html."
+      (Required) The list of cron or rate expressions to use for the Amazon EventBridge rule. For example: cron(0 12 * * ? *) or rate(7 days). Important: The time zone used is UTC. For more information, see https://docs.aws.amazon.com/eventbridge/latest/userguide/scheduled-events.html.
+    Default: cron(0 6 ? * SAT *),cron(0 6 ? * SUN *),cron(0 23 ? * 3#2 *)
   EmailService:
     Type: String
     Description: "(Required) Service to be used for the patch summary email."
@@ -78,46 +68,31 @@ Parameters:
       - false
 Rules:
   SenderEmailParameters:
-    RuleCondition:
-      !Equals
-        - !Ref EmailService
-        - "SES"
+    RuleCondition: !Equals
+      - !Ref EmailService
+      - "SES"
     Assertions:
-      - Assert:
-          !Not
-            - !Equals [!Ref SenderEmail, ""]
+      - Assert: !Not
+          - !Equals [!Ref SenderEmail, ""]
         AssertDescription: "SenderEmail parameter can't be empty when EmailService is set to SES."
   RecipientEmailParameters:
-    RuleCondition:
-      !Or
-        - !Equals [!Ref EmailService, "SES"]
-        - !Equals [!Ref EmailService, "SNS"]
+    RuleCondition: !Or
+      - !Equals [!Ref EmailService, "SES"]
+      - !Equals [!Ref EmailService, "SNS"]
     Assertions:
-      - Assert:
-          !Not
-            - !Equals [!Ref RecipientEmail, ""]
+      - Assert: !Not
+          - !Equals [!Ref RecipientEmail, ""]
         AssertDescription: "RecipientEmail parameter can't be empty."
-  OrganizationIDParameters:
-    Assertions:
-      - Assert:
-          !Not
-            - !Equals
-                - !Ref OrganizationID
-                - ""
-        AssertDescription: "OrganizationID parameter can't be empty"
 Conditions:
-  SNSEmailResource:
-    !Equals
-      - !Ref "EmailService"
-      - "SNS"
-  ChatbotResource:
-    !Equals
-      - !Ref "Chatbot"
-      - true
-  SNSResources:
-    !Or
-      - !Equals [!Ref "Chatbot", true]
-      - !Equals [!Ref "EmailService", "SNS"]
+  SNSEmailResource: !Equals
+    - !Ref "EmailService"
+    - "SNS"
+  ChatbotResource: !Equals
+    - !Ref "Chatbot"
+    - true
+  SNSResources: !Or
+    - !Equals [!Ref "Chatbot", true]
+    - !Equals [!Ref "EmailService", "SNS"]
 Resources:
   PermissionForEventsToInvokeLambda:
     Type: AWS::Lambda::Permission
@@ -126,8 +101,7 @@ Resources:
         Ref: PatchReportingLambdaFunction
       Action: lambda:InvokeFunction
       Principal: events.amazonaws.com
-      SourceArn:
-        !GetAtt PatchReportingScheduler.Arn
+      SourceArn: !Sub "arn:${AWS::Partition}:events:${AWS::Region}:${AWS::AccountId}:rule/${AWS::StackName}-PatchReportingSchedulercr*"
   PatchReportingLambdaFunctionRole:
     Type: AWS::IAM::Role
     Properties:
@@ -157,14 +131,12 @@ Resources:
                   - !GetAtt PatchInvocationDynamoDBTable.Arn
                   - !GetAtt PatchOperationDynamoDBTable.Arn
               - Action: logs:CreateLogGroup
-                Resource:
-                  !Sub arn:${AWS::Partition}:logs:${AWS::Region}:${AWS::AccountId}:*
+                Resource: !Sub arn:${AWS::Partition}:logs:${AWS::Region}:${AWS::AccountId}:*
                 Effect: Allow
               - Action:
                   - logs:CreateLogStream
                   - logs:PutLogEvents
-                Resource:
-                  !GetAtt LambdaFunctionLogGroup.Arn
+                Resource: !GetAtt LambdaFunctionLogGroup.Arn
                 Effect: Allow
               - Action:
                   - s3:PutObject
@@ -182,8 +154,16 @@ Resources:
                 - SNSResources
                 - Action: sns:Publish
                   Resource:
-                    - !If [SNSEmailResource, !Ref PatchingReportEmailSNSTopic, !Ref "AWS::NoValue"]
-                    - !If [ChatbotResource, !Ref PatchingReportChatbotSNSTopic, !Ref "AWS::NoValue"]
+                    - !If [
+                        SNSEmailResource,
+                        !Ref PatchingReportEmailSNSTopic,
+                        !Ref "AWS::NoValue",
+                      ]
+                    - !If [
+                        ChatbotResource,
+                        !Ref PatchingReportChatbotSNSTopic,
+                        !Ref "AWS::NoValue",
+                      ]
                   Effect: Allow
                 - !Ref "AWS::NoValue"
               - !If
@@ -738,10 +718,8 @@ Resources:
                   TopicArn=chatbot_sns_topic_arn,
                   Message=message
               )
-
       Environment:
-        Variables:
-          !If
+        Variables: !If
           - SNSEmailResource
           - TABLE1_NAME: !Ref PatchInvocationDynamoDBTable
             TABLE2_NAME: !Ref PatchOperationDynamoDBTable
@@ -750,7 +728,8 @@ Resources:
             EMAIL_SERVICE: !Ref EmailService
             TIME_TO_LIVE: !Ref TimeToLive
             SNS_TOPIC_ARN: !Ref PatchingReportEmailSNSTopic
-            CHATBOT_SNS_TOPIC_ARN: !If [ChatbotResource, !Ref PatchingReportChatbotSNSTopic, ""]
+            CHATBOT_SNS_TOPIC_ARN:
+              !If [ChatbotResource, !Ref PatchingReportChatbotSNSTopic, ""]
           - TABLE1_NAME: !Ref PatchInvocationDynamoDBTable
             TABLE2_NAME: !Ref PatchOperationDynamoDBTable
             S3_BUCKET_NAME: !Ref PatchingReportS3Bucket
@@ -759,7 +738,8 @@ Resources:
             TIME_TO_LIVE: !Ref TimeToLive
             RECIPIENT_EMAIL: !Ref RecipientEmail
             SENDER_EMAIL: !Ref SenderEmail
-            CHATBOT_SNS_TOPIC_ARN: !If [ChatbotResource, !Ref PatchingReportChatbotSNSTopic, ""]
+            CHATBOT_SNS_TOPIC_ARN:
+              !If [ChatbotResource, !Ref PatchingReportChatbotSNSTopic, ""]
       Handler: index.handler
       Role: !GetAtt PatchReportingLambdaFunctionRole.Arn
       Runtime: python3.12
@@ -784,17 +764,18 @@ Resources:
           Value: !Ref AWS::StackId
         - Key: cloudformation:stack-name
           Value: !Ref AWS::StackName
-  PatchReportingScheduler:
-    Type: AWS::Events::Rule
-    Properties:
-      Description: !Sub "Amazon EventBridge rule to invoke lambda function ${PatchReportingLambdaFunction} on specified schedule. CloudFormation stack name: ${AWS::StackName}."
-      ScheduleExpression:
-        Ref: EventBridgeRuleSchedule
-      State: ENABLED
-      Targets:
-        - Arn:
-            !GetAtt PatchReportingLambdaFunction.Arn
-          Id: ReportGenerator
+  Fn::ForEach::Scheduler:
+    - InputScheduleExpression
+    - !Ref EventBridgeRuleSchedules
+    - 'PatchReportingScheduler&{InputScheduleExpression}':
+        Type: 'AWS::Events::Rule'
+        Properties:
+          Description: !Sub "Amazon EventBridge rule to invoke lambda function ${PatchReportingLambdaFunction} on specified schedule ${InputScheduleExpression}. CloudFormation stack name: ${AWS::StackName}."
+          ScheduleExpression: !Ref InputScheduleExpression
+          State: ENABLED
+          Targets:
+            - Arn: !GetAtt PatchReportingLambdaFunction.Arn
+              Id: !Sub 'ReportGeneratorLambdaFunction'
   PatchingReportStateMachineRole:
     Type: AWS::IAM::Role
     Properties:
@@ -1191,113 +1172,6 @@ Resources:
           Value: !Ref AWS::StackId
         - Key: cloudformation:stack-name
           Value: !Ref AWS::StackName
-  PatchInvocationEventBus:
-    Type: AWS::Events::EventBus
-    Properties:
-      Name: !Sub PatchInvocationEventBus-${AWS::StackName}
-      Tags:
-        - Key: cloudformation:logical-id
-          Value: PatchInvocationEventBus
-        - Key: cloudformation:stack-id
-          Value: !Ref AWS::StackId
-        - Key: cloudformation:stack-name
-          Value: !Ref AWS::StackName
-  PatchInvocationEventBusPolicy:
-    Type: AWS::Events::EventBusPolicy
-    Properties:
-      Action: "events:PutEvents"
-      EventBusName: !Ref PatchInvocationEventBus
-      Principal: "*"
-      StatementId: !Sub AllowPutPatchInvocationEventforOrg-${AWS::StackName}
-      Condition:
-        Type: "StringEquals"
-        Key: "aws:PrincipalOrgID"
-        Value: !Ref OrganizationID
-  PatchOperationEventBus:
-    Type: AWS::Events::EventBus
-    Properties:
-      Name: !Sub PatchOperationEventBus-${AWS::StackName}
-      Tags:
-        - Key: cloudformation:logical-id
-          Value: PatchOperationEventBus
-        - Key: cloudformation:stack-id
-          Value: !Ref AWS::StackId
-        - Key: cloudformation:stack-name
-          Value: !Ref AWS::StackName
-  PatchOperationEventBusPolicy:
-    Type: AWS::Events::EventBusPolicy
-    Properties:
-      Action: "events:PutEvents"
-      EventBusName: !Ref PatchOperationEventBus
-      Principal: "*"
-      StatementId: !Sub AllowPutPatchOperationEventforOrg-${AWS::StackName}
-      Condition:
-        Type: "StringEquals"
-        Key: "aws:PrincipalOrgID"
-        Value: !Ref OrganizationID
-  PatchInvocationEventBridgeBusRule:
-    Type: AWS::Events::Rule
-    Properties:
-      Description: !Sub "Amazon EventBridge rule for each run command invocation linked to event bus ${PatchInvocationEventBus}. This is created as a part of a CloudFormation stack name: ${AWS::StackName}."
-      EventBusName: !Ref PatchInvocationEventBus
-      EventPattern:
-        source:
-          - aws.ssm
-        detail-type:
-          - EC2 Command Invocation Status-change Notification
-        detail:
-          document-name:
-            - AWS-RunPatchBaseline
-            - AWS-RunPatchBaselineAssociation
-            - AWS-RunPatchBaselineWithHooks
-            - AWS-ConfigureWindowsUpdate
-            - AWS-InstallWindowsUpdates
-          status:
-            - Success
-            - Failed
-            - Cancelled
-            - TimedOut
-            - DeliveryTimedOut
-            - ExecutionTimedOut
-            - Undeliverable
-            - Terminated
-            - InvalidPlatform
-            - AccessDenied
-      Targets:
-        - Arn: !Ref PatchInvocationStateMachine
-          Id: PatchInvocationEventBridgeBusRule
-          RoleArn: !GetAtt PatchingReportEventBridgeRuleRole.Arn
-  PatchOperationEventBridgeBusRule:
-    Type: AWS::Events::Rule
-    Properties:
-      Description: !Sub "Amazon EventBridge rule for each run command linked to event bus ${PatchOperationEventBus}. This is created as a part of a CloudFormation stack name: ${AWS::StackName}."
-      EventBusName: !Ref PatchOperationEventBus
-      EventPattern:
-        source:
-          - aws.ssm
-        detail-type:
-          - EC2 Command Status-change Notification
-        detail:
-          document-name:
-            - AWS-RunPatchBaseline
-            - AWS-RunPatchBaselineAssociation
-            - AWS-RunPatchBaselineWithHooks
-            - AWS-ConfigureWindowsUpdate
-            - AWS-InstallWindowsUpdates
-          status:
-            - Success
-            - Failed
-            - Cancelled
-            - TimedOut
-            - DeliveryTimedOut
-            - Incomplete
-            - RateExceeded
-            - AccessDenied
-            - No Instances In Tag
-      Targets:
-        - Arn: !Ref PatchOperationStateMachine
-          Id: PatchOperationEventBridgeBusRule
-          RoleArn: !GetAtt PatchingReportEventBridgeRuleRole.Arn
   PatchingReportEventBridgeRuleRole:
     Type: AWS::IAM::Role
     Properties:
@@ -1417,7 +1291,7 @@ Resources:
     Type: AWS::SNS::TopicPolicy
     Properties:
       PolicyDocument:
-        Id: !Sub PatchingReportSNSPolicy-${AWS::StackName}
+        Id: !Sub PatchReportSNSPolicy-${AWS::StackName}
         Version: "2012-10-17"
         Statement:
           - Sid: !Sub AllowLambda-${AWS::StackName}
@@ -1437,7 +1311,7 @@ Resources:
     Type: AWS::SNS::TopicPolicy
     Properties:
       PolicyDocument:
-        Id: !Sub PatchingReportSNSPolicy-${AWS::StackName}
+        Id: !Sub PatchReportSNSPolicy-${AWS::StackName}
         Version: "2012-10-17"
         Statement:
           - Sid: !Sub AllowLambda-${AWS::StackName}
@@ -1464,20 +1338,14 @@ Resources:
         - Key: cloudformation:stack-name
           Value: !Ref AWS::StackName
 Outputs:
-  PatchInvocationEventBus:
-    Description: The ARN of the PatchInvocationEventBus in the central account.
-    Value: !GetAtt PatchInvocationEventBus.Arn
-  PatchOperationEventBus:
-    Description: The ARN of the PatchOperationEventBus in the central account.
-    Value: !GetAtt PatchOperationEventBus.Arn
   PatchingReportS3Bucket:
-    Description: The name of the Amazon S3 bucket in the central account.
+    Description: The name of the Amazon S3 bucket.
     Value: !Ref PatchingReportS3Bucket
   ChatbotSNSTopic:
     Condition: ChatbotResource
-    Description: The topic name of the PatchingReportChatbotSNSTopic in the central account.
+    Description: The topic name of the PatchingReportChatbotSNSTopic.
     Value: !GetAtt PatchingReportChatbotSNSTopic.TopicName
   PatchingReportEmailSNSTopic:
     Condition: SNSEmailResource
-    Description: The topic name of the PatchingReportEmailSNSTopic in the central account.
+    Description: The topic name of the PatchingReportEmailSNSTopic.
     Value: !GetAtt PatchingReportEmailSNSTopic.TopicName
